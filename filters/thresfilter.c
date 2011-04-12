@@ -1,4 +1,5 @@
 #include <mpi.h>
+#include <stdio.h>
 #include <malloc.h>
 #include "thresfilter.h"
 
@@ -24,22 +25,27 @@ void thresfilter(const int xsize, const int ysize, pixel* src){
   int end = (myid + 1) * rows * xsize;
   if(end > nump) end = nump;
 
-  for(i = start, sum = 0; i < end; i++) {
-    sum += (uint)src[i].r + (uint)src[i].g + (uint)src[i].b;
+  //for(i = start, sum = 0; i < end; i++) {
+  for(i = 0; i < rows * xsize; i++) {
+    sum += (uint)dst[i].r + (uint)dst[i].g + (uint)dst[i].b;
   }
 
-  sum /= end - start;
-  int* sum_v = (int*)malloc(sizeof(int) * numprocs);
+  printf("Task %d, Sum is %d\n", myid, sum);
+
+  //sum /= end - start;
+  //int* sum_v = (int*)malloc(sizeof(int) * numprocs);
 
   int totsum = 0;
 
   MPI_Reduce( &sum, &totsum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD );
 
-  totsum /= numprocs;
+  //totsum /= ysize * xsize;
+  sum = totsum / (ysize * xsize);
 
   MPI_Bcast(&totsum, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
   for(i = 0; i < nump; i++) {
+//  for(i = start; i < end; i++) {
     psum = (uint)src[i].r + (uint)src[i].g + (uint)src[i].b;
     if(sum > psum) {
       src[i].r = src[i].g = src[i].b = 0;
