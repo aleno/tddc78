@@ -13,9 +13,9 @@ void thresfilter(const int xsize, const int ysize, pixel* src){
 
   nump = xsize * ysize;
 
-  int rows = ysize / numprocs;
+  int rows = ysize / numprocs + 1;
 
-  pixel dst[1000000];
+  pixel dst[1000000] = {0};
 
   MPI_Scatter(src, rows * xsize * sizeof(pixel), MPI_BYTE,
 	      dst, rows * xsize * sizeof(pixel), MPI_BYTE,
@@ -39,19 +39,24 @@ void thresfilter(const int xsize, const int ysize, pixel* src){
 
   MPI_Reduce( &sum, &totsum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD );
 
-  //totsum /= ysize * xsize;
-  sum = totsum / (ysize * xsize);
 
   MPI_Bcast(&totsum, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-  for(i = 0; i < nump; i++) {
-//  for(i = start; i < end; i++) {
-    psum = (uint)src[i].r + (uint)src[i].g + (uint)src[i].b;
+  //totsum /= ysize * xsize;
+  sum = totsum / (ysize * xsize);
+
+  //  for(i = 0; i < nump; i++) {
+  for(i = 0; i < rows * xsize; i++) {
+    psum = (uint)dst[i].r + (uint)dst[i].g + (uint)dst[i].b;
     if(sum > psum) {
-      src[i].r = src[i].g = src[i].b = 0;
+      dst[i].r = dst[i].g = dst[i].b = 0;
     }
     else {
-      src[i].r = src[i].g = src[i].b = 255;
+      dst[i].r = dst[i].g = dst[i].b = 255;
     }
   }
+  
+  MPI_Gather(dst, rows * xsize * sizeof(pixel), MPI_BYTE,
+	     src, rows * xsize * sizeof(pixel), MPI_BYTE,
+	     0, MPI_COMM_WORLD);
 }

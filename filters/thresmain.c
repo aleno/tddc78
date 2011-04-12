@@ -11,7 +11,7 @@ int myid;
 
 int main (int argc, char ** argv) {
     int xsize, ysize, colmax;
-    pixel src[MAX_PIXELS];
+    pixel src[MAX_PIXELS] = {0};
     struct timespec stime, etime;
 
     /* Take care of the arguments */
@@ -36,6 +36,7 @@ int main (int argc, char ** argv) {
       }
     }
 
+    double starttime = MPI_Wtime();
     int sizes[2];
     sizes[0] = xsize;
     sizes[1] = ysize;
@@ -63,6 +64,9 @@ int main (int argc, char ** argv) {
 
     /* write result */
     if(myid == 0) {
+      double endtime = MPI_Wtime();
+      printf("Task %d: Filtering took MPI_Wtime: %g secs\n", myid, endtime - starttime) ;
+
       printf("Writing output file\n");
       
       if(write_ppm (argv[2], xsize, ysize, (char *)src) != 0)
