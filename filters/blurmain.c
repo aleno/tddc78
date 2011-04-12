@@ -60,7 +60,7 @@ int main (int argc, char ** argv) {
       }
     }
 
-
+    double starttime = MPI_Wtime();
     int sizes[2];
     sizes[0] = xsize;
     sizes[1] = ysize;
@@ -149,6 +149,8 @@ int main (int argc, char ** argv) {
     printf("Task %d, Has gather data\n", myid);
 
     if(myid == ROOT) {
+      double endtime = MPI_Wtime();
+      printf("Task %d: Filtering took MPI_Wtime: %g secs\n", myid, endtime - starttime) ;
       /* write result */
       printf("Task %d, Writing output file\n", myid);
       
