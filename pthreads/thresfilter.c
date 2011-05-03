@@ -4,7 +4,7 @@
 #include <assert.h>
 #include "thresfilter.h"
 
-#define NUM_THREADS 5
+#define NUM_THREADS 8
 
 #define uint unsigned int 
 
