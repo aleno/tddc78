@@ -38,10 +38,12 @@ program laplsolv
 !        tmp1=tmp2
 !     end do
 
-     !$omp parallel shared(T, Tlast, Ti, error) private(tmp1, tmp2, tmp3)
+     !$omp do ordered private(tmp1, tmp2, tmp3)
      do j=1,n
         tmp3 = T(1:n,j-1)
+        !$omp flush(Ti)
         if (j-1 == Ti) then
+           !$omp flush(Tlast)
            tmp3 = Tlast
         end if
         tmp2 = T(1:n,j)
@@ -49,20 +51,19 @@ program laplsolv
 
         !$omp critical
         error = max(error, maxval(abs(tmp2 - tmp1)))
-
-        if (j > Ti) then
-           Ti = j
-           Tlast = tmp2
-        end if
         !$omp end critical
 
-        !$omp barrier
+        !$omp ordered
+        Ti = j;
+        Tlast = tmp2;
+        !$omp flush(Tlast)
+        !$omp flush(Ti);
 
         T(1:n,j) = tmp1
         
-        !$omp barrier
+        !$omp end ordered
      end do
-     !$omp end parallel        
+     !$omp end do      
      
      if (error<tol) then
         exit
