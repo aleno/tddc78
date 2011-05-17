@@ -1,4 +1,5 @@
 program laplsolv
+use omp_lib
 !-----------------------------------------------------------------------
 ! Serial program for solving the heat conduction problem 
 ! on a square using the Jacobi method. 
@@ -9,8 +10,8 @@ program laplsolv
   double precision,parameter          :: tol=1.0E-3
   double precision,dimension(0:n+1,0:n+1) :: T
   double precision,dimension(n)       :: tmp1,tmp2,tmp3,Tlast
-  double precision                    :: error,x
-  real                                :: t1,t0
+  double precision                    :: error,x, err
+  double precision                                :: t1,t0
   integer                             :: i,j,k, Tl
   character(len=20)                   :: str
   
@@ -22,8 +23,9 @@ program laplsolv
   ! T(y, x) Konstiga sak...
 
   ! Solve the linear system of equations using the Jacobi method
-  call cpu_time(t0)
-  
+!  call cpu_time(t0)
+  t0 = omp_get_wtime();
+  !$omp parallel shared(T, Ti, Tlast, error, k)
   do k=1,maxiter
      
      tmp1=T(1:n,0)
@@ -38,40 +40,37 @@ program laplsolv
 !        tmp1=tmp2
 !     end do
 
-     !$omp do ordered private(tmp1, tmp2, tmp3)
+     !$omp do ordered private(tmp1, tmp2, tmp3, err) reduction(max: error)
      do j=1,n
+        !$omp ordered
         tmp3 = T(1:n,j-1)
-        !$omp flush(Ti)
-        if (j-1 == Ti) then
-           !$omp flush(Tlast)
-           tmp3 = Tlast
-        end if
+
         tmp2 = T(1:n,j)
         tmp1 = (T(0:n-1,j)+T(2:n+1,j)+T(1:n,j+1)+tmp3)/4.0D0
+        !$omp end ordered
+        err = maxval(abs(tmp2 - tmp1))
 
-        !$omp critical
-        error = max(error, maxval(abs(tmp2 - tmp1)))
-        !$omp end critical
+        
+        error = max(error, err)
+       
 
         !$omp ordered
-        Ti = j;
-        Tlast = tmp2;
-        !$omp flush(Tlast)
-        !$omp flush(Ti);
 
         T(1:n,j) = tmp1
-        
         !$omp end ordered
+        
      end do
-     !$omp end do      
+     !$omp end do
+  
      
      if (error<tol) then
         exit
      end if
      
   end do
-  
-  call cpu_time(t1)
+  !$omp end parallel  
+!  call cpu_time(t1)
+  t1 = omp_get_wtime();
 
   write(unit=*,fmt=*) 'Time:',t1-t0,'Number of Iterations:',k
   write(unit=*,fmt=*) 'Temperature of element T(1,1)  =',T(1,1)
