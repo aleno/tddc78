@@ -38,9 +38,9 @@ use omp_lib
   istart = id * lines_per_thread + 1
   iend = min((id +1) * lines_per_thread, n)
 
-  !$omp critical
+ !$omp critical
   write (*,*) 'Hello from', id, istart, iend
-  !$omp end critical
+ !$omp end critical
 
   do k=1,maxiter
     
@@ -58,28 +58,27 @@ use omp_lib
      tmp3 = T(1:n,iend + 1)
 
      !$omp barrier
-     !$omp flush
 
      do j = istart, iend - 1
         tmp2 = T(1:n,j)
         T(1:n,j) = (T(0:n-1,j) + T(2:n+1,j) + T(1:n,j+1) + tmp1)/4.0D0
-
-        !$omp critical
-        error = max(error, maxval(abs(tmp2 - T(1:n,j))))
-        !$omp end critical
-
+        Terr(j) = maxval(abs(tmp2 - T(1:n,j)))
         tmp1 = tmp2
      end do
 
      ! Specialfall för gränsgrejer
      tmp2 = T(1:n, iend)
      T(1:n,iend) = (T(0:n-1,iend) + T(2:n+1,iend) + tmp3 + tmp1)/4.0D0
-     !$omp critical
-     error = max(error, maxval(abs(tmp2 - T(1:n,iend))))
-     !$omp end critical
+     Terr(iend) = maxval(abs(tmp2 - T(1:n,iend)))
 
      !$omp barrier
      !$omp flush
+
+     !$omp do reduction(MAX:error)
+     do j = 1, n
+        error = max(error, Terr(j))
+     end do
+     !$omp end do
 
      if (error<tol) then
         exit
