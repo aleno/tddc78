@@ -156,7 +156,7 @@ int main (int argc, char ** argv) {
 
   // Reduce momentum
   float momentum2;
-  MPI_Allreduce(&momentum, &momentum2, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Reduce(&momentum, &momentum2, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
   momentum = momentum2;
   // Show what to do..
   //printf("Momentum: %f\n", momentum);
