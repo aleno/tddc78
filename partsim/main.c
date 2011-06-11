@@ -4,9 +4,9 @@
 #include <malloc.h>
 #include <time.h>
 #include <mpi.h>
+#include "definitions.h"
 
 int main (int argc, char ** argv) {
-
     /*if (argc != 4) {
 	fprintf(stderr, "Usage: %s radius infile outfile\n", argv[0]);
 	exit(1);
@@ -47,13 +47,12 @@ int main (int argc, char ** argv) {
     numparticles = active_particles * numprocs;
 
     struct particle *particles =
-      (struct particle*)malloc(sizeof(pcord_t) * numparticles);
-
+      (struct particle*)malloc(sizeof(struct particle) * numparticles);
     struct particle *to_east =
-      (struct particle*)malloc(sizeof(pcord_t) * numparticles);
+      (struct particle*)malloc(sizeof(struct particle) * numparticles);
     int east_emigrants = 0;
     struct particle *to_west =
-      (struct particle*)malloc(sizeof(pcord_t) * numparticles);
+      (struct particle*)malloc(sizeof(struct particle) * numparticles);
     int west_emigrants = 0;
 
     for (int i = 0; i < active_particles; i++) {
@@ -77,88 +76,79 @@ int main (int argc, char ** argv) {
     float momentum = 0;
     //Main loop: for each time-step do
     while (steps-- > 0) {
-      printf("Steps left: %d\n", steps);
+		printf("Steps left: %d\n", steps);
       
-      //for all particles do
-      for(int i = 0; i < active_particles; i++) {
-	int collided = 0;
-	for(int j = i; j < active_particles; j++) {
-	  //Check for collisions
-	  float diff = collide(particles[i], particles[j]);
-	  if(diff != -1) {	    
-	    collided = 1;
-	    interact(particles[i], particles[j], diff);
-	  }
-	}
-	if(colleded == 0) {
-	  //Move particles that has not collided with another
-	  feuler(particles[i], time_step);
-	}
+		//For all particles do:
+		for(int i = 0; i < active_particles; i++) {
+			int collided = 0;
+			for(int j = i + 1; j < active_particles; j++) {
+				//Check for collisions
+				float diff = collide(particles[i], particles[j]);
+				if(diff != -1) {
+					collided = 1;
+					interact(particles[i], particles[j], diff);
+				}
+			}
+			if(colleded == 0) {
+				//Move particles that has not collided with another
+				feuler(particles[i], time_step);
+			}
 
-	//Chech for wall interaction and add the momentum
-	momentum += wall_collide(particles[i], big_box);
+			//Chech for wall interaction and add the momentum
+			momentum += wall_collide(particles[i], big_box);
 
-	// Add particle to move list of out of box. =/
-	if(particles[i].pcord.x >= box.x1){
-	  // Move to russia
-	  to_east[east_emigrants++] = particles[i];
-	  particles[i] = particles[--active_particles];
-	} else if(particles[i].pcord.x < box.x0){
-	  // Land of opertunity!
-	  to_west[west_emigrants++] = particles[i];
-	  particles[i] = particles[--active_particles];
-	  // Swap with last.
-	  // active --
-	  // to_move ++;
-	}
-	// Do that..
-      }
+			// Add particle to move list of out of box. =/
+			if(particles[i].pcord.x >= box.x1){
+				to_east[east_emigrants++] = particles[i];
+				particles[i] = particles[--active_particles];
+			} else if(particles[i].pcord.x < box.x0){
+				to_west[west_emigrants++] = particles[i];
+				particles[i] = particles[--active_particles];
+				// Swap with last.
+				// active --
+				// to_move ++;
+			}
+			// Do that..
+		}
 
-      //Communicte particles Aouwvhh.      
-      // Notify goverments about new imigrants.. =/
-      int to_send = east_emigrants;
+		//Communicte particles Aouwvhh.      
+		// Notify goverments about new imigrants.. =/
+		int to_send = east_emigrants;
+		MPI_Send(&to_send, 1, MPI_INT, (myid + 1) % numprocs, 99, MPI_COMM_WORLD);
+	
+		int to_recv;
+		MPI_Recv(&to_recv, 1, MPI_INT, (myid + numprocs - 1) % numprocs, 99, MPI_COMM_WORLD);
+		
+		int local[2] = {east_emigrants, west_emigrants};
+		int ls[2] = {0};
 
-      MPI_Send(&to_send, 1, MPI_INT, (myid + 1) % numprocs,
-	       99, MPI_COMM_WORLD);
-      int to_recv;
-      MPI_Recv(&to_recv, 1, MPI_INT, (myid + numprocs - 1) % numprocs,
-	       99, MPI_COMM_WORLD);
-			
+		int lnbr = (myid + numprocs - 1) % numprocs;
+		int rnbr = (myid + 1) % numprocs;
 
-      int local[2] = {east_emigrants, west_emigrants};
-      int ls[2] = {0};
-
-      int lnbr = (myid + numprocs - 1) % numprocs;
-      int rnbr = (myid + 1) % numprocs;
-
-      // Exchange boundary values with neighbors:
-      MPI_Send( local+1, 1, MPI_INT, lnbr, 10, com );
-      MPI_Recv( ls+1, 1, MPI_INT, rnbr, 10, com, &status );
-      MPI_Send( ls, 1, MPI_INT, rnbr, 20, com );
-      MPI_Recv( local, 1, MPI_INT, lnbr, 20, com, &status );
-      // Let them flee...
+		// Exchange boundary values with neighbors:
+		MPI_Send( local+1, 1, MPI_INT, lnbr, 10, com );
+		MPI_Recv( ls+1, 1, MPI_INT, rnbr, 10, com, &status );
+		MPI_Send( ls, 1, MPI_INT, rnbr, 20, com );
+		MPI_Recv( local, 1, MPI_INT, lnbr, 20, com, &status );
+		// Let them flee...
       
-      MPI_Send( west_emigrants, local[1]* sizeof(particle), MPI_BYTE,
-		lnbr, 30, com );
-      MPI_Recv( particles+active_particles, ls[1] * sizeof(particle), MPI_BYTE,
-		rnbr, 30, com );
-      active_particles += ls[1];
+		MPI_Send( west_emigrants, local[1]* sizeof(particle), MPI_BYTE, lnbr, 30, com );
+		MPI_Recv( particles+active_particles, ls[1] * sizeof(particle), MPI_BYTE, rnbr, 30, com );
+		active_particles += ls[1];
       
-      MPI_Send( east_emigrants, local[1]* sizeof(particle), MPI_BYTE,
-		rnbr, 40, com );
-      MPI_Recv( particles+active_particles, ls[0] * sizeof(particle), MPI_BYTE,
-		lnbr, 40, com );
-      active_particles += ls[0];
+		MPI_Send( east_emigrants, local[1]* sizeof(particle), MPI_BYTE, rnbr, 40, com );
+		MPI_Recv( particles+active_particles, ls[0] * sizeof(particle), MPI_BYTE, lnbr, 40, com );
+		active_particles += ls[0];
 
-      // Reduce momentum
-      int momentum2;
-      MPI_Allreduce(&momentum, &momentum2, 1, MPI_INT, MPI_SUM, com);
-      momentum = momentum2;
-      // Show what to do..
-      printf("Momentum: %d\n", momentum);
+		// Reduce momentum
+		int momentum2;
+		MPI_Allreduce(&momentum, &momentum2, 1, MPI_INT, MPI_SUM, com);
+		momentum = momentum2;
+		// Show what to do..
+		printf("Momentum: %d\n", momentum);
 
-      // Maybe say that to all..
-    }
+		// Maybe say that to all..
+	}
 
     // Fin, :D
     
@@ -193,8 +183,6 @@ int main (int argc, char ** argv) {
 	       ROOT, MPI_COMM_WORLD);
     
     MPI_Finalize(); /* MPI Programs end with MPI Finalize; this is a weak synchronization point */
-
-
 
     return(0);
 }
