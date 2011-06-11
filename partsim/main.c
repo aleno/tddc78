@@ -11,16 +11,6 @@
 
 
 int main (int argc, char ** argv) {
-  /*if (argc != 4) {
-    fprintf(stderr, "Usage: %s radius infile outfile\n", argv[0]);
-    exit(1);
-    }
-    radius = atoi(argv[1]);
-    if((radius > MAX_RAD) || (radius < 1)) {
-    fprintf(stderr, "Radius (%d) must be greater than zero and less then %d\n", radius, MAX_RAD);
-    exit(1);
-    }*/
-  
   int numprocs;
   int myid;
   int i;
@@ -124,14 +114,7 @@ int main (int argc, char ** argv) {
       // Do that..
     }
 
-    //Communicte particles Aouwvhh.      
-    // Notify goverments about new imigrants.. =/
-    /*int to_send = east_emigrants;
-        MPI_Send(&to_send, 1, MPI_INT, (myid + 1) % numprocs,
-	     myid, 99, MPI_COMM_WORLD);
-	
-    int to_recv;
-    MPI_Recv(&to_recv, 1, MPI_INT, (myid + numprocs - 1) % numprocs, 99, MPI_COMM_WORLD);*/
+    //Communicte particles.      
 		
     int local[2] = {east_emigrants, west_emigrants};
     int ls[2] = {0};
@@ -188,37 +171,6 @@ int main (int argc, char ** argv) {
   }
   
   // Fin, :D
-    
-  //Calculate pressure
-  /*
-  double starttime = MPI_Wtime();
-
-
-  MPI_Bcast(sizes, 2, MPI_INT, ROOT, MPI_COMM_WORLD);
-
-  if( myid != ROOT) {
-      
-  }
-
-  // Skapa buffrar för gatherv/scatterv
-  int* displs = (int*)malloc(sizeof(int) * numprocs);
-  int* scounts = (int*)malloc(sizeof(int) * numprocs);
-  int* srows = (int*)malloc(sizeof(int) * numprocs);
-
-  int rows = (ysize / numprocs);
-    
-  for(i = 0; i < numprocs; i++) {
-
-  }
-
-  MPI_Scatterv(src, scounts, displs, MPI_BYTE,
-	       dst, scounts[myid], MPI_BYTE,
-	       ROOT, MPI_COMM_WORLD);
-
-  MPI_Gatherv(buffp, scounts[myid], MPI_BYTE,
-	      src, scounts, displs, MPI_BYTE,
-	      ROOT, MPI_COMM_WORLD);
-    */
   MPI_Finalize(); /* MPI Programs end with MPI Finalize; this is a weak synchronization point */
 
   return(0);
