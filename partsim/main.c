@@ -7,6 +7,8 @@
 #include "definitions.h"
 
 #define ROOT 0
+#define NUM_STEPS 100
+
 
 int main (int argc, char ** argv) {
   /*if (argc != 4) {
@@ -23,6 +25,8 @@ int main (int argc, char ** argv) {
   int myid;
   int i;
  
+  //srand(time(0));
+
   MPI_Init(&argc,&argv); /* all MPI programs start with MPI_Init; all 'N' processes exist thereafter */
   MPI_Comm_size(MPI_COMM_WORLD,&numprocs); /* find out how big the SPMD world is */
   MPI_Comm_rank(MPI_COMM_WORLD,&myid); /* and this processes' rank is */
@@ -47,6 +51,9 @@ int main (int argc, char ** argv) {
   int numparticles = atoi(argv[1]);
   int active_particles = numparticles / numprocs;
   numparticles = active_particles * numprocs;
+
+  if(myid == ROOT)
+    printf("There shall be %d particles.\n", numparticles);
 
   struct particle *particles =
     (struct particle*)malloc(sizeof(struct particle) * numparticles);
@@ -76,12 +83,14 @@ int main (int argc, char ** argv) {
 
   float time_step = 0.5;
   float momentum = 0;
-  int steps = 100;
+  int steps = NUM_STEPS;
+  double start_time = MPI_Wtime();
 
   //Main loop: for each time-step do
   while (steps-- > 0) {
-    printf("Steps left: %d\n", steps);
+    //printf("Steps left: %d\n", steps);
       
+    float momentum_tmp = 0;
     //For all particles do:
     for(int i = 0; i < active_particles; i++) {
       int collided = 0;
@@ -99,7 +108,7 @@ int main (int argc, char ** argv) {
       }
 
       //Chech for wall interaction and add the momentum
-      momentum += wall_collide(&particles[i].pcord, big_box);
+      momentum_tmp += wall_collide(&particles[i].pcord, big_box);
 
       // Add particle to move list of out of box. =/
       if(particles[i].pcord.x >= box.x1){
@@ -146,22 +155,38 @@ int main (int argc, char ** argv) {
 	      MPI_BYTE, rnbr, 30, com, &status );
     active_particles += ls[1];
       
-    MPI_Send( to_east, local[1]* sizeof(struct particle), MPI_BYTE,
+    MPI_Send( to_east, local[0]* sizeof(struct particle), MPI_BYTE,
 	      rnbr, 40, com );
     MPI_Recv( particles+active_particles, ls[0] * sizeof(struct particle),
 	      MPI_BYTE, lnbr, 40, com, &status );
     active_particles += ls[0];
 
-    // Reduce momentum
-    float momentum2;
-    MPI_Allreduce(&momentum, &momentum2, 1, MPI_FLOAT, MPI_SUM, com);
-    momentum = momentum2;
-    // Show what to do..
-    printf("Momentum: %f\n", momentum);
+    west_emigrants = 0;
+    east_emigrants = 0;
+
+    momentum += momentum_tmp;
 
     // Maybe say that to all..
   }
+  
+  printf("%d: Pre momentum: %f\n", myid, momentum);
 
+  // Reduce momentum
+  float momentum2;
+  MPI_Allreduce(&momentum, &momentum2, 1, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+  momentum = momentum2;
+  // Show what to do..
+  //printf("Momentum: %f\n", momentum);
+
+  double end_time = MPI_Wtime();
+
+  momentum /= NUM_STEPS * (2*BOX_VERT_SIZE + 2* BOX_HORIZ_SIZE);
+
+  if(myid == ROOT) {
+    printf("The mometum ended up as... %f\n", momentum);
+    printf("It's done it took: %lf\n", end_time - start_time);
+  }
+  
   // Fin, :D
     
   //Calculate pressure
