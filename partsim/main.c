@@ -118,29 +118,44 @@ int main (int argc, char ** argv) {
       // Notify goverments about new imigrants.. =/
       int to_send = east_emigrants;
 
-      int el1;
-      int el2;
-      int el3;
-      
-      int *arr = &el1;
-      int mel3 = arr[2];
+      MPI_Send(&to_send, 1, MPI_INT, (myid + 1) % numprocs,
+	       99, MPI_COMM_WORLD);
+      int to_recv;
+      MPI_Recv(&to_recv, 1, MPI_INT, (myid + numprocs - 1) % numprocs,
+	       99, MPI_COMM_WORLD);
+			
 
-      class vec3 {
-	float x;
-	float y;
-	float z;
-      };
+      int local[2] = {east_emigrants, west_emigrants};
+      int ls[2] = {0};
 
-      float *arr = &m_vec3;
-      arr[2] // z..
-      MPI_Send(&to_send, 1, MPI_INT, 
-	MPI_RECV
-	
+      int lnbr = (myid + numprocs - 1) % numprocs;
+      int rnbr = (myid + 1) % numprocs;
+
+      // Exchange boundary values with neighbors:
+      MPI_Send( local+1, 1, MPI_INT, lnbr, 10, com );
+      MPI_Recv( ls+1, 1, MPI_INT, rnbr, 10, com, &status );
+      MPI_Send( ls, 1, MPI_INT, rnbr, 20, com );
+      MPI_Recv( local, 1, MPI_INT, lnbr, 20, com, &status );
       // Let them flee...
       
+      MPI_Send( west_emigrants, local[1]* sizeof(particle), MPI_BYTE,
+		lnbr, 30, com );
+      MPI_Recv( particles+active_particles, ls[1] * sizeof(particle), MPI_BYTE,
+		rnbr, 30, com );
+      active_particles += ls[1];
+      
+      MPI_Send( east_emigrants, local[1]* sizeof(particle), MPI_BYTE,
+		rnbr, 40, com );
+      MPI_Recv( particles+active_particles, ls[0] * sizeof(particle), MPI_BYTE,
+		lnbr, 40, com );
+      active_particles += ls[0];
+
       // Reduce momentum
-  
+      int momentum2;
+      MPI_Allreduce(&momentum, &momentum2, 1, MPI_INT, MPI_SUM, com);
+      momentum = momentum2;
       // Show what to do..
+      printf("Momentum: %d\n", momentum);
 
       // Maybe say that to all..
     }
