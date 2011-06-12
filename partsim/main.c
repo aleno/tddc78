@@ -7,19 +7,26 @@
 #include "definitions.h"
 
 #define ROOT 0
-#define NUM_STEPS 100
+#define NUM_STEPS 1000
 
+#undef BOX_HORIZ_SIZE
+#define BOX_HORIZ_SIZE 40000.0
 
 int main (int argc, char ** argv) {
   int numprocs;
   int myid;
   int i;
  
-  //srand(time(0));
+  srand(time(0));
 
   MPI_Init(&argc,&argv); /* all MPI programs start with MPI_Init; all 'N' processes exist thereafter */
   MPI_Comm_size(MPI_COMM_WORLD,&numprocs); /* find out how big the SPMD world is */
   MPI_Comm_rank(MPI_COMM_WORLD,&myid); /* and this processes' rank is */
+
+  if(myid == ROOT) {
+    printf("Number of processors: %d\n", numprocs);
+    printf("box size: %f x %f\n", BOX_HORIZ_SIZE, BOX_VERT_SIZE);
+  }
 
   int sub_box_width=BOX_HORIZ_SIZE/numprocs;
   int sub_box_height=BOX_VERT_SIZE;
@@ -128,8 +135,8 @@ int main (int argc, char ** argv) {
     // Exchange boundary values with neighbors:
     MPI_Send( local+1, 1, MPI_INT, lnbr, 10, com );
     MPI_Recv( ls+1, 1, MPI_INT, rnbr, 10, com, &status );
-    MPI_Send( ls, 1, MPI_INT, rnbr, 20, com );
-    MPI_Recv( local, 1, MPI_INT, lnbr, 20, com, &status );
+    MPI_Send( local, 1, MPI_INT, rnbr, 20, com );
+    MPI_Recv( ls, 1, MPI_INT, lnbr, 20, com, &status );
     // Let them flee...
       
     MPI_Send( to_west, local[1]* sizeof(struct particle), MPI_BYTE,

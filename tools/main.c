@@ -28,6 +28,10 @@ int main (int argc, char ** argv) {
   MPI_Comm_rank(MPI_COMM_WORLD,&myid);
   VT_classdef ("Partsim Application", &application_class);
 
+  if(myid == ROOT) {
+    printf("Number of processors: %d\n", numprocs);
+  }
+
   int migration_state;
   int reduce_state;
   int step_state;
