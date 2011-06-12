@@ -4,23 +4,47 @@
 #include <malloc.h>
 #include <time.h>
 #include <mpi.h>
+#include <VT.h>
 #include "definitions.h"
 
 #define ROOT 0
 #define NUM_STEPS 100
 
+int application_class;
 
 int main (int argc, char ** argv) {
   int numprocs;
   int myid;
   int i;
  
-  //srand(time(0));
+  srand(time(0));
 
-  MPI_Init(&argc,&argv); /* all MPI programs start with MPI_Init; all 'N' processes exist thereafter */
-  MPI_Comm_size(MPI_COMM_WORLD,&numprocs); /* find out how big the SPMD world is */
-  MPI_Comm_rank(MPI_COMM_WORLD,&myid); /* and this processes' rank is */
+  /* all MPI programs start with MPI_Init;
+     all 'N' processes exist thereafter */
+  MPI_Init(&argc,&argv);
+  /* find out how big the SPMD world is */
+  MPI_Comm_size(MPI_COMM_WORLD,&numprocs);
+  /* and this processes' rank is */
+  MPI_Comm_rank(MPI_COMM_WORLD,&myid);
+  VT_classdef ("Partsim Application", &application_class);
 
+  int migration_state;
+  int reduce_state;
+  int step_state;
+
+  VT_funcdef("Migration", application_class, &migration_state);
+  VT_funcdef("Reduce", application_class, &reduce_state);
+  VT_funcdef("Step", application_class, &step_state);
+
+  int pd_counter_handle;
+  int counter_class;
+  const float boundaries[2]={0,atoi(argv[1])};
+  
+  VT_countdef( "Particles", application_class,
+	       VT_COUNT_INTEGER|VT_COUNT_ABSVAL|VT_COUNT_VALID_AFTER,
+	       VT_ME,
+	       boundaries,"#",&pd_counter_handle);
+  
   int sub_box_width=BOX_HORIZ_SIZE/numprocs;
   int sub_box_height=BOX_VERT_SIZE;
 
@@ -78,6 +102,10 @@ int main (int argc, char ** argv) {
 
   //Main loop: for each time-step do
   while (steps-- > 0) {
+    VT_countval(1, &pd_counter_handle, &active_particles);
+
+
+    VT_enter(step_state, VT_NOSCL);
     //printf("Steps left: %d\n", steps);
       
     float momentum_tmp = 0;
@@ -113,9 +141,10 @@ int main (int argc, char ** argv) {
       }
       // Do that..
     }
+    VT_leave(VT_NOSCL);
 
-    //Communicte particles.      
-		
+    VT_enter(migration_state, VT_NOSCL);
+    //Communicte particles.
     int local[2] = {east_emigrants, west_emigrants};
     int ls[2] = {0};
 
@@ -128,8 +157,8 @@ int main (int argc, char ** argv) {
     // Exchange boundary values with neighbors:
     MPI_Send( local+1, 1, MPI_INT, lnbr, 10, com );
     MPI_Recv( ls+1, 1, MPI_INT, rnbr, 10, com, &status );
-    MPI_Send( ls, 1, MPI_INT, rnbr, 20, com );
-    MPI_Recv( local, 1, MPI_INT, lnbr, 20, com, &status );
+    MPI_Send( local, 1, MPI_INT, rnbr, 20, com );
+    MPI_Recv( ls, 1, MPI_INT, lnbr, 20, com, &status );
     // Let them flee...
       
     MPI_Send( to_west, local[1]* sizeof(struct particle), MPI_BYTE,
@@ -144,34 +173,50 @@ int main (int argc, char ** argv) {
 	      MPI_BYTE, lnbr, 40, com, &status );
     active_particles += ls[0];
 
+    if(local[0] != 0 || local[1] != 0 || ls[0] != 0 || ls[1] != 0)
+    printf("%d: %d/%d - %d/%d %d\n", myid,
+	   local[0], local[1], ls[0], ls[1], active_particles);
+
+
     west_emigrants = 0;
     east_emigrants = 0;
+
+    VT_leave( VT_NOSCL );
 
     momentum += momentum_tmp;
 
     // Maybe say that to all..
   }
   
-  printf("%d: Pre momentum: %f\n", myid, momentum);
-
+  printf("%d: Pre momentum: %f, %d\n", myid, momentum, active_particles);
+  VT_enter(reduce_state, VT_NOSCL);
   // Reduce momentum
   float momentum2;
   MPI_Reduce(&momentum, &momentum2, 1, MPI_FLOAT, MPI_SUM, 0, MPI_COMM_WORLD);
   momentum = momentum2;
   // Show what to do..
   //printf("Momentum: %f\n", momentum);
-
+  VT_leave(VT_NOSCL);
   double end_time = MPI_Wtime();
+
+  int foo;
+
+  MPI_Reduce(&active_particles, &foo, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
   momentum /= NUM_STEPS * (2*BOX_VERT_SIZE + 2* BOX_HORIZ_SIZE);
 
   if(myid == ROOT) {
     printf("The mometum ended up as... %f\n", momentum);
     printf("It's done it took: %lf\n", end_time - start_time);
+
+    printf("Particles in system: %d\n", foo);
   }
   
   // Fin, :D
-  MPI_Finalize(); /* MPI Programs end with MPI Finalize; this is a weak synchronization point */
+  /* MPI Programs end with MPI Finalize;
+     this is a weak synchronization point */
+
+  MPI_Finalize();
 
   return(0);
 }
